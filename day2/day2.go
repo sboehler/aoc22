@@ -7,22 +7,40 @@ import (
 	"strings"
 )
 
-func compute(f io.Reader, n int) (int, error) {
+func compute(f io.Reader) (int, error) {
 	ir, err := newInputReader(f)
 	if err != nil {
 		return 0, err
 	}
 	var s scorer
 	for {
-		n, ok, err := ir.next()
+		n, ok, err := ir.next1()
 		if err != nil {
 			return 0, err
 		}
 		if !ok {
 			break
 		}
-		s.update(n)
-		fmt.Println(n)
+		s.update1(n)
+	}
+	return s.score, nil
+}
+
+func compute2(f io.Reader) (int, error) {
+	ir, err := newInputReader(f)
+	if err != nil {
+		return 0, err
+	}
+	var s scorer
+	for {
+		n, ok, err := ir.next2()
+		if err != nil {
+			return 0, err
+		}
+		if !ok {
+			break
+		}
+		s.update2(n)
 	}
 	return s.score, nil
 }
@@ -32,29 +50,71 @@ type scorer struct {
 	score int
 }
 
-func (m *scorer) update(n outcome) {
-	m.score += score(n)
+func (s *scorer) update1(n round1) {
+	s.score += score(n)
 }
 
-func score(o outcome) int {
+func (s *scorer) update2(n round2) {
+	mine := move((int(n.theirs) + int(n.res) - 1) % 3)
+	if mine < 0 {
+		mine += 3
+	}
+	s.score += score(round1{
+		mine:   mine,
+		theirs: n.theirs,
+	})
+}
+
+func score(o round1) int {
+	ms := int(o.mine) + 1
 	switch (o.mine - o.theirs) % 3 {
 	case 0:
-		return 3 + (o.mine + 1)
+		return 3 + ms
 	case 1, -2:
-		return 6 + (o.mine + 1)
+		return 6 + ms
 	case 2, -1:
-		return o.mine + 1
+		return ms
 	}
 	panic("impossible")
 }
 
+type move int
+
 const (
-	Rock int = iota
+	Rock move = iota
 	Paper
 	Scissors
 )
 
-type outcome struct{ mine, theirs int }
+type outcome int
+
+const (
+	Lose outcome = iota
+	Draw
+	Win
+)
+
+var letterToMove = map[string]move{
+	"A": Rock,
+	"B": Paper,
+	"C": Scissors,
+	"X": Rock,
+	"Y": Paper,
+	"Z": Scissors,
+}
+
+var letterToOutcome = map[string]outcome{
+	"X": Lose,
+	"Y": Draw,
+	"Z": Win,
+}
+
+type round1 struct{ mine, theirs move }
+
+type round2 struct {
+	theirs move
+	res    outcome
+}
 
 // inputReader reads the input and returns the sum of consecutive numbers.
 type inputReader struct {
@@ -68,36 +128,37 @@ func newInputReader(r io.Reader) (*inputReader, error) {
 	}, nil
 }
 
-func (ir *inputReader) next() (outcome, bool, error) {
+func (ir *inputReader) next() ([]string, bool, error) {
 	ok := ir.scanner.Scan()
 	if !ok {
-		return outcome{}, false, ir.scanner.Err()
+		return nil, false, ir.scanner.Err()
 	}
 	l := ir.scanner.Text()
 	outs := strings.SplitN(l, " ", 2)
 	if len(outs) != 2 {
-		return outcome{}, false, fmt.Errorf("invalid entry: %s", l)
+		return nil, false, fmt.Errorf("invalid entry: %s", l)
 	}
-	var mine, theirs int
-	switch outs[0] {
-	case "A":
-		theirs = Rock
-	case "B":
-		theirs = Paper
-	case "C":
-		theirs = Scissors
-	default:
-		return outcome{}, false, fmt.Errorf("invalid move: %s", outs[0])
+	return outs, true, nil
+}
+
+func (ir *inputReader) next1() (round1, bool, error) {
+	outs, ok, err := ir.next()
+	if !ok || err != nil {
+		return round1{}, ok, err
 	}
-	switch outs[1] {
-	case "X":
-		mine = Rock
-	case "Y":
-		mine = Paper
-	case "Z":
-		mine = Scissors
-	default:
-		return outcome{}, false, fmt.Errorf("invalid move: %s", outs[1])
+	return round1{
+		theirs: letterToMove[outs[0]],
+		mine:   letterToMove[outs[1]],
+	}, true, nil
+}
+
+func (ir *inputReader) next2() (round2, bool, error) {
+	outs, ok, err := ir.next()
+	if !ok || err != nil {
+		return round2{}, ok, err
 	}
-	return outcome{mine, theirs}, true, nil
+	return round2{
+		theirs: letterToMove[outs[0]],
+		res:    letterToOutcome[outs[1]],
+	}, true, nil
 }
