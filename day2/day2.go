@@ -7,75 +7,65 @@ import (
 	"strings"
 )
 
-func compute(f io.Reader) (int, error) {
-	ir, err := newInputReader(f)
+func compute(f io.Reader, decode func([]string) (move, move)) (int, error) {
+	ir, err := newScoreReader(f)
 	if err != nil {
 		return 0, err
 	}
-	var s scorer
+	var score int
 	for {
-		n, ok, err := ir.next1()
+		n, ok, err := ir.next()
 		if err != nil {
 			return 0, err
 		}
 		if !ok {
 			break
 		}
-		s.update1(n)
+		mine, theirs := decode(n)
+		score += computeScore(mine, theirs)
 	}
-	return s.score, nil
+	return score, nil
 }
 
-func compute2(f io.Reader) (int, error) {
-	ir, err := newInputReader(f)
-	if err != nil {
-		return 0, err
-	}
-	var s scorer
-	for {
-		n, ok, err := ir.next2()
-		if err != nil {
-			return 0, err
-		}
-		if !ok {
-			break
-		}
-		s.update2(n)
-	}
-	return s.score, nil
+func decode1(tokens []string) (mine, theirs move) {
+	mine = letterToMove[tokens[1]]
+	theirs = letterToMove[tokens[0]]
+	return
 }
 
-// max keeps track of the sum of the maximum len(max) numbers.
-type scorer struct {
-	score int
+func decode2(tokens []string) (mine, theirs move) {
+	theirs = letterToMove[tokens[0]]
+	res := letterToOutcome[tokens[1]]
+	mine = move((int(theirs) + int(res) + 2) % 3)
+	return
 }
 
-func (s *scorer) update1(n round1) {
-	s.score += score(n)
+// scoreReader reads the input and returns the sum of consecutive numbers.
+type scoreReader struct {
+	scanner *bufio.Scanner
 }
 
-func (s *scorer) update2(n round2) {
-	mine := move((int(n.theirs) + int(n.res) - 1) % 3)
-	if mine < 0 {
-		mine += 3
+func newScoreReader(r io.Reader) (*scoreReader, error) {
+	return &scoreReader{
+		scanner: bufio.NewScanner(r),
+	}, nil
+}
+
+func (sc *scoreReader) next() ([]string, bool, error) {
+	ok := sc.scanner.Scan()
+	if !ok {
+		return nil, false, sc.scanner.Err()
 	}
-	s.score += score(round1{
-		mine:   mine,
-		theirs: n.theirs,
-	})
+	l := sc.scanner.Text()
+	outs := strings.SplitN(l, " ", 2)
+	if len(outs) != 2 {
+		return nil, false, fmt.Errorf("invalid entry: %s", l)
+	}
+	return outs, true, nil
 }
 
-func score(o round1) int {
-	ms := int(o.mine) + 1
-	switch (o.mine - o.theirs) % 3 {
-	case 0:
-		return 3 + ms
-	case 1, -2:
-		return 6 + ms
-	case 2, -1:
-		return ms
-	}
-	panic("impossible")
+func computeScore(mine, theirs move) int {
+	return int(3*((mine-theirs+4)%3) + mine + 1)
 }
 
 type move int
@@ -107,58 +97,4 @@ var letterToOutcome = map[string]outcome{
 	"X": Lose,
 	"Y": Draw,
 	"Z": Win,
-}
-
-type round1 struct{ mine, theirs move }
-
-type round2 struct {
-	theirs move
-	res    outcome
-}
-
-// inputReader reads the input and returns the sum of consecutive numbers.
-type inputReader struct {
-	scanner *bufio.Scanner
-}
-
-func newInputReader(r io.Reader) (*inputReader, error) {
-	scanner := bufio.NewScanner(r)
-	return &inputReader{
-		scanner: scanner,
-	}, nil
-}
-
-func (ir *inputReader) next() ([]string, bool, error) {
-	ok := ir.scanner.Scan()
-	if !ok {
-		return nil, false, ir.scanner.Err()
-	}
-	l := ir.scanner.Text()
-	outs := strings.SplitN(l, " ", 2)
-	if len(outs) != 2 {
-		return nil, false, fmt.Errorf("invalid entry: %s", l)
-	}
-	return outs, true, nil
-}
-
-func (ir *inputReader) next1() (round1, bool, error) {
-	outs, ok, err := ir.next()
-	if !ok || err != nil {
-		return round1{}, ok, err
-	}
-	return round1{
-		theirs: letterToMove[outs[0]],
-		mine:   letterToMove[outs[1]],
-	}, true, nil
-}
-
-func (ir *inputReader) next2() (round2, bool, error) {
-	outs, ok, err := ir.next()
-	if !ok || err != nil {
-		return round2{}, ok, err
-	}
-	return round2{
-		theirs: letterToMove[outs[0]],
-		res:    letterToOutcome[outs[1]],
-	}, true, nil
 }
