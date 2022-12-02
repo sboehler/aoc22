@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-func TestPart1(t *testing.T) {
+func TestCompute(t *testing.T) {
 	tests := []struct {
 		name   string
 		file   string
-		decode func([]string) (move, move)
+		decode decoder
 		want   int
 	}{
 		{

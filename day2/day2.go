@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func compute(f io.Reader, decode func([]string) (move, move)) (int, error) {
+func compute(f io.Reader, decode decoder) (int, error) {
 	ir, err := newScoreReader(f)
 	if err != nil {
 		return 0, err
@@ -26,6 +26,8 @@ func compute(f io.Reader, decode func([]string) (move, move)) (int, error) {
 	}
 	return score, nil
 }
+
+type decoder func([]string) (move, move)
 
 func decode1(tokens []string) (mine, theirs move) {
 	mine = letterToMove[tokens[1]]
