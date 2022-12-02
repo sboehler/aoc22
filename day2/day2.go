@@ -8,23 +8,16 @@ import (
 )
 
 func compute(f io.Reader, decode decoder) (int, error) {
-	ir, err := newScoreReader(f)
-	if err != nil {
-		return 0, err
-	}
+	ir := scoreReader{bufio.NewScanner(f)}
 	var score int
 	for {
 		n, ok, err := ir.next()
-		if err != nil {
-			return 0, err
-		}
-		if !ok {
-			break
+		if !ok || err != nil {
+			return score, err
 		}
 		mine, theirs := decode(n)
 		score += computeScore(mine, theirs)
 	}
-	return score, nil
 }
 
 type decoder func([]string) (move, move)
@@ -45,12 +38,6 @@ func decode2(tokens []string) (mine, theirs move) {
 // scoreReader reads the input and returns the sum of consecutive numbers.
 type scoreReader struct {
 	scanner *bufio.Scanner
-}
-
-func newScoreReader(r io.Reader) (*scoreReader, error) {
-	return &scoreReader{
-		scanner: bufio.NewScanner(r),
-	}, nil
 }
 
 func (sc *scoreReader) next() ([]string, bool, error) {
